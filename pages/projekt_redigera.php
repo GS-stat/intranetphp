@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_project'])) {
         if (uppdateraProjekt($pdo, $id, $data)) {
             sparaProjektRader($pdo, $id, $nyaRader);
 
-            // Försök skicka SMS-kvittens om projektet nu är avslutad + betald
+            // Försök skicka SMS-kvittens om projektet nu är avslutad + betald.
             require_once '../includes/sms.php';
             skickaSmsKvittens($pdo, $id);
 
