@@ -1,0 +1,63 @@
+# 🧩 Composer
+/vendor/
+/composer.lock
+
+# 📦 Dependencies (alternativ om du vill spara lock-filen)
+# !composer.lock
+
+# 🛠️ PHPStorm / VSCode / IDE
+/.idea/
+/.vscode/
+/*.code-workspace
+
+# 🧾 Logs
+*.log
+logs/
+*.cache
+
+# ⚙️ Environment files (hemligheter)
+.env
+.env.*
+!.env.example
+
+# 🧪 PHPUnit
+/phpunit.xml
+/phpunit.xml.dist
+/.phpunit.result.cache
+
+# 🧹 Cache / temp
+/cache/
+/tmp/
+/temp/
+
+# 📁 Uploads (om din app genererar filer)
+uploads/
+public/uploads/
+
+# 🔐 Sessions
+/sessions/
+
+# 🧬 OS-filer
+.DS_Store
+Thumbs.db
+
+# 🔥 Laravel (om du använder det)
+bootstrap/cache/*
+storage/*.key
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+
+# 🔥 Symfony (om relevant)
+var/cache/*
+var/log/*
+var/sessions/*
+
+# 🧱 Node (om du använder frontend tooling)
+/node_modules/
+npm-debug.log
+yarn-error.log
+
+# 🧪 Coverage
+coverage/
