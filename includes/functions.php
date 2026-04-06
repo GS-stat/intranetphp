@@ -627,22 +627,85 @@ function hamtaProjektRader($pdo, $projekt_id) {
 function sparaProjektRader($pdo, $projekt_id, $rader) {
     $pdo->prepare("DELETE FROM stat_projekt_rader WHERE projekt_id = ?")->execute([$projekt_id]);
 
-    $sql = "INSERT INTO stat_projekt_rader (projekt_id, typ, beskrivning, pris, antal, rabatt)
-            VALUES (:projekt_id, :typ, :beskrivning, :pris, :antal, :rabatt)";
+    $sql = "INSERT INTO stat_projekt_rader (projekt_id, artikel_id, typ, beskrivning, pris, antal, rabatt)
+            VALUES (:projekt_id, :artikel_id, :typ, :beskrivning, :pris, :antal, :rabatt)";
     $stmt = $pdo->prepare($sql);
 
     foreach ($rader as $rad) {
         if (empty(trim($rad['beskrivning'] ?? ''))) continue;
 
         $stmt->execute([
-            ':projekt_id' => $projekt_id,
-            ':typ'        => ($rad['typ'] === 'arbete') ? 'arbete' : 'material',
-            ':beskrivning'=> trim($rad['beskrivning']),
-            ':pris'       => (float)($rad['pris'] ?? 0),
-            ':antal'      => (float)($rad['antal'] ?? 1),
-            ':rabatt'     => (float)($rad['rabatt'] ?? 0)
+            ':projekt_id'  => $projekt_id,
+            ':artikel_id'  => !empty($rad['artikel_id']) ? (int)$rad['artikel_id'] : null,
+            ':typ'         => 'material',
+            ':beskrivning' => trim($rad['beskrivning']),
+            ':pris'        => (float)($rad['pris'] ?? 0),
+            ':antal'       => (float)($rad['antal'] ?? 1),
+            ':rabatt'      => (float)($rad['rabatt'] ?? 0),
         ]);
     }
+}
+
+// ──────────────────────────────────────────────────────────
+// ARTIKLAR (admin-hanterade produkter/tjänster)
+// ──────────────────────────────────────────────────────────
+
+/**
+ * Hämta alla artiklar
+ */
+function hamtaAllaArtiklar($pdo, bool $aktivaOnly = false): array {
+    if ($aktivaOnly) {
+        $stmt = $pdo->query("SELECT * FROM stat_artiklar WHERE aktiv = 1 ORDER BY namn ASC");
+    } else {
+        $stmt = $pdo->query("SELECT * FROM stat_artiklar ORDER BY aktiv DESC, namn ASC");
+    }
+    return $stmt->fetchAll();
+}
+
+/**
+ * Hämta en artikel
+ */
+function hamtaArtikel($pdo, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM stat_artiklar WHERE id = ?");
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+/**
+ * Skapa artikel
+ */
+function skapaArtikel($pdo, array $data): bool {
+    $stmt = $pdo->prepare("
+        INSERT INTO stat_artiklar (namn, pris, tillat_rabatt, pris_disabled, aktiv)
+        VALUES (:namn, :pris, :tillat_rabatt, :pris_disabled, :aktiv)
+    ");
+    return $stmt->execute($data);
+}
+
+/**
+ * Uppdatera artikel
+ */
+function uppdateraArtikel($pdo, int $id, array $data): bool {
+    $data['id'] = $id;
+    $stmt = $pdo->prepare("
+        UPDATE stat_artiklar
+        SET namn           = :namn,
+            pris           = :pris,
+            tillat_rabatt  = :tillat_rabatt,
+            pris_disabled  = :pris_disabled,
+            aktiv          = :aktiv
+        WHERE id = :id
+    ");
+    return $stmt->execute($data);
+}
+
+/**
+ * Radera artikel
+ */
+function raderaArtikel($pdo, int $id): bool {
+    $stmt = $pdo->prepare("DELETE FROM stat_artiklar WHERE id = ?");
+    return $stmt->execute([$id]);
 }
 
 /**

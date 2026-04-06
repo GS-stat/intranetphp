@@ -16,10 +16,30 @@ $veckaSlut  = date('Y-m-d', strtotime($veckaStart . ' +6 days'));
 $bokningar  = hamtaVeckansBokningarPerTekniker($pdo, $veckaStart, $tekniker_id);
 $veckodagar = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
 $tider      = [];
-for ($i = 7; $i <= 18; $i++) $tider[] = sprintf('%02d:00', $i);
+for ($i = 7; $i <= 18; $i++) $tider[] = $i;
 
-// Räkna totalt bokningar denna vecka
 $totalBokningar = array_sum(array_map('count', $bokningar));
+
+// ── Bokningsfärger – cyklar per bokning-ID ──────────────────────────────────
+$bokningsFarger = ['#dc3545','#0d6efd','#198754','#fd7e14','#6f42c1','#0dcaf0'];
+
+// ── Pre-beräkna kolumnplacering per dag och starttimme ──────────────────────
+$kolumnerPerDag      = [];
+$antalPerTimmePerDag = [];
+
+foreach ($bokningar as $datum => $dagensBokningar) {
+    $perTimme = [];
+    foreach ($dagensBokningar as $b) {
+        $startH = $b['starttid'] ? (int)date('H', strtotime($b['starttid'])) : 9;
+        $perTimme[$startH][] = $b['id'];
+    }
+    foreach ($perTimme as $h => $ids) {
+        $antalPerTimmePerDag[$datum][$h] = count($ids);
+        foreach ($ids as $idx => $id) {
+            $kolumnerPerDag[$datum][$id] = $idx;
+        }
+    }
+}
 ?>
 
 <div class="veckokalender-wrapper">
@@ -46,14 +66,14 @@ $totalBokningar = array_sum(array_map('count', $bokningar));
         <p>Inga bokningar denna vecka<?php echo $tekniker_id ? ' för vald tekniker' : ''; ?></p>
     </div>
     <?php else: ?>
-    <div class="veckokalender">
+    <div class="veckokalender-tek">
         <div class="kalender-grid-tek">
             <!-- Header -->
             <div class="grid-header-tek tid-header-tek">Tid</div>
             <?php for ($i = 0; $i < 7; $i++):
-                $datum   = date('Y-m-d', strtotime($veckaStart . " +$i days"));
-                $arIdag  = date('Y-m-d') === $datum;
-                $antal   = count($bokningar[$datum] ?? []);
+                $datum  = date('Y-m-d', strtotime($veckaStart . " +$i days"));
+                $arIdag = date('Y-m-d') === $datum;
+                $antal  = count($bokningar[$datum] ?? []);
             ?>
                 <div class="grid-header-tek <?php echo $arIdag ? 'idag-header' : ''; ?>">
                     <?php echo $veckodagar[$i]; ?><br>
@@ -65,23 +85,46 @@ $totalBokningar = array_sum(array_map('count', $bokningar));
             <?php endfor; ?>
 
             <!-- Tidsrader -->
-            <?php foreach ($tider as $tid):
-                $timme = (int)substr($tid, 0, 2);
-            ?>
-                <div class="tid-cell-tek"><?php echo $tid; ?></div>
+            <?php foreach ($tider as $timme): ?>
+                <div class="tid-cell-tek"><?php printf('%02d:00', $timme); ?></div>
                 <?php for ($dagIndex = 0; $dagIndex < 7; $dagIndex++):
-                    $datum          = date('Y-m-d', strtotime($veckaStart . " +$dagIndex days"));
+                    $datum           = date('Y-m-d', strtotime($veckaStart . " +$dagIndex days"));
                     $dagensBokningar = $bokningar[$datum] ?? [];
                 ?>
                     <div class="dag-cell-tek">
                         <?php foreach ($dagensBokningar as $b):
-                            $startTid = $b['starttid'] ? date('H:i', strtotime($b['starttid'])) : '09:00';
-                            if ($startTid !== $tid) continue;
-                            $hojdPx   = beraknaBlockHojd($b['starttid'], $b['sluttid']) * 60;
-                            $tekNamn  = $b['tekniker_namn'] ?? 'Ej tilldelad';
+                            $startH   = $b['starttid'] ? (int)date('H', strtotime($b['starttid'])) : 9;
+                            $startMin = $b['starttid'] ? (int)date('i', strtotime($b['starttid'])) : 0;
+
+                            if ($startH !== $timme) continue;
+
+                            $hojdPx  = beraknaBlockHojd($b['starttid'], $b['sluttid']) * 60;
+                            $kolumn  = $kolumnerPerDag[$datum][$b['id']] ?? 0;
+                            $total   = min($antalPerTimmePerDag[$datum][$timme] ?? 1, 3);
+                            $tekNamn = $b['tekniker_namn'] ?? 'Ej tilldelad';
+                            $farg    = $bokningsFarger[$b['id'] % count($bokningsFarger)];
+
+                            $baseStyle = "height:{$hojdPx}px; top:{$startMin}px; background:{$farg};";
+                            if ($total === 1) {
+                                $blockStyle = $baseStyle . "left:2px; right:2px;";
+                            } elseif ($total === 2) {
+                                if ($kolumn === 0) {
+                                    $blockStyle = $baseStyle . "left:1px; width:calc(50% - 2px);";
+                                } else {
+                                    $blockStyle = $baseStyle . "left:calc(50% + 1px); width:calc(50% - 2px);";
+                                }
+                            } else {
+                                if ($kolumn === 0) {
+                                    $blockStyle = $baseStyle . "left:1px; width:calc(33.33% - 2px);";
+                                } elseif ($kolumn === 1) {
+                                    $blockStyle = $baseStyle . "left:calc(33.33% + 1px); width:calc(33.33% - 2px);";
+                                } else {
+                                    $blockStyle = $baseStyle . "left:calc(66.66% + 1px); width:calc(33.34% - 2px);";
+                                }
+                            }
                         ?>
                             <div class="bokning-block-tek"
-                                 style="height:<?php echo $hojdPx; ?>px"
+                                 style="<?php echo $blockStyle; ?>"
                                  onclick="window.location='projekt_visa.php?id=<?php echo $b['id']; ?>'"
                                  title="<?php echo htmlspecialchars($b['rubrik'] . ' – ' . $tekNamn); ?>">
                                 <div class="btek-tid">
@@ -105,7 +148,8 @@ $totalBokningar = array_sum(array_map('count', $bokningar));
 <style>
 .veckokalender-wrapper { padding: 15px; }
 .nuvarande-vecka { background:#f8f9fa; padding:8px 16px; border-radius:20px; color:#dc3545; }
-.veckokalender { background:white; border-radius:12px; overflow-x:auto; box-shadow:0 1px 3px rgba(0,0,0,.1); }
+
+.veckokalender-tek { background:white; border-radius:12px; overflow-x:auto; box-shadow:0 1px 3px rgba(0,0,0,.1); }
 .kalender-grid-tek {
     display:grid;
     grid-template-columns: 70px repeat(7, 1fr);
@@ -123,19 +167,19 @@ $totalBokningar = array_sum(array_map('count', $bokningar));
 }
 .dag-cell-tek {
     border-bottom:1px solid #dee2e6; border-right:1px solid #dee2e6;
-    position:relative; height:60px; background:white;
+    position:relative; height:60px; background:white; overflow:visible;
 }
 .bokning-block-tek {
-    position:absolute; left:2px; right:2px;
+    position:absolute;
     background:#dc3545; color:white; border-radius:5px;
     padding:3px 5px; font-size:10px; cursor:pointer;
     transition:all .15s; overflow:hidden; z-index:2;
     box-shadow:0 1px 3px rgba(0,0,0,.2);
 }
-.bokning-block-tek:hover { background:#bb2d3b; transform:scale(1.01); z-index:10; }
-.btek-tid     { font-weight:bold; font-size:9px; opacity:.9; }
-.btek-rubrik  { font-weight:bold; font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.btek-regnr   { font-size:9px; opacity:.75; }
+.bokning-block-tek:hover { filter:brightness(0.85); transform:scale(1.01); z-index:10; box-shadow:0 4px 8px rgba(0,0,0,.2); }
+.btek-tid      { font-weight:bold; font-size:9px; opacity:.9; }
+.btek-rubrik   { font-weight:bold; font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.btek-regnr    { font-size:9px; opacity:.75; }
 .btek-tekniker { font-size:9px; opacity:.85; font-style:italic; }
 </style>
 

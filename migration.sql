@@ -5,6 +5,24 @@
 -- ==========================================================
 
 -- ──────────────────────────────────────────────────────────
+-- 5. Artikelregister (admin-hanterade produkter/tjänster)
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `stat_artiklar` (
+    `id`            INT           NOT NULL AUTO_INCREMENT,
+    `namn`          VARCHAR(255)  NOT NULL,
+    `pris`          DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `tillat_rabatt` TINYINT(1)    NOT NULL DEFAULT 1  COMMENT '1 = rabatt tillåten',
+    `pris_disabled` TINYINT(1)    NOT NULL DEFAULT 0  COMMENT '1 = priset är låst',
+    `aktiv`         TINYINT(1)    NOT NULL DEFAULT 1,
+    `skapad`        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Lägg till artikel-referens i projekt-rader (nullable FK)
+ALTER TABLE `stat_projekt_rader`
+    ADD COLUMN IF NOT EXISTS `artikel_id` INT NULL AFTER `projekt_id`;
+
+-- ──────────────────────────────────────────────────────────
 -- 1. Kolumner som kan saknas från original-tabellen
 -- ──────────────────────────────────────────────────────────
 ALTER TABLE `stat_projekt`
