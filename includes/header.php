@@ -76,6 +76,11 @@
                             <li><a class="dropdown-item" href="anvandare_skapa.php">Skapa användare</a></li>
                         </ul>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="artiklar_lista.php">
+                            <i class="fas fa-tags"></i> Artiklar
+                        </a>
+                    </li>
                     <?php endif; ?>
                 </ul>
                 <ul class="navbar-nav">

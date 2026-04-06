@@ -3,7 +3,7 @@ require_once '../includes/config.php';
 kravInloggning();
 
 $users   = hamtaAllaAnvandare($pdo);
-$TIMPRIS = 850;
+$artiklar = hamtaAllaArtiklar($pdo, true); // Endast aktiva artiklar
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
@@ -14,13 +14,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $beskrivning = trim($rad['beskrivning'] ?? '');
             if ($beskrivning === '') continue;
 
-            $typ    = $rad['typ'] === 'arbete' ? 'arbete' : 'material';
-            $antal  = max(0, (float)($rad['antal'] ?? 1));
-            $pris   = ($typ === 'arbete') ? $TIMPRIS : max(0, (float)($rad['pris'] ?? 0));
-            $rabatt = ($typ === 'arbete') ? max(0, (float)($rad['rabatt'] ?? 0)) : 0;
+            $artikel_id = !empty($rad['artikel_id']) ? (int)$rad['artikel_id'] : null;
+            $antal      = max(0, (float)($rad['antal'] ?? 1));
+            $pris       = max(0, (float)($rad['pris'] ?? 0));
+            $rabatt     = max(0, (float)($rad['rabatt'] ?? 0));
 
             $rader[] = [
-                'typ'         => $typ,
+                'artikel_id'  => $artikel_id,
                 'beskrivning' => $beskrivning,
                 'pris'        => $pris,
                 'antal'       => $antal,
@@ -80,6 +80,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Kunde inte skapa projektet. Kontrollera att alla obligatoriska fält är ifyllda.";
     }
 }
+
+// Serialisera artiklar för JS
+$artiklarJson = json_encode(array_map(fn($a) => [
+    'id'            => (int)$a['id'],
+    'namn'          => $a['namn'],
+    'pris'          => (float)$a['pris'],
+    'pris_disabled' => (bool)$a['pris_disabled'],
+    'tillat_rabatt' => (bool)$a['tillat_rabatt'],
+], $artiklar));
 ?>
 <?php include '../includes/header.php'; ?>
 
@@ -238,7 +247,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </select>
                             </div>
 
-                            <!-- Döljs om status = inkommen -->
                             <div class="mb-3" id="ansvarigWrapper" style="display: none;">
                                 <label for="ansvarig_tekniker" class="form-label">Ansvarig tekniker</label>
                                 <select class="form-control" id="ansvarig_tekniker" name="ansvarig_tekniker">
@@ -258,19 +266,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </h5>
 
                             <div class="mb-3">
-                                <label for="pris" class="form-label">Manuellt pris (kr)</label>
-                                <input type="number" step="0.01" class="form-control" id="pris"
-                                       name="pris" placeholder="Beräknas automatiskt från rader"
-                                       disabled>
-                                <small class="text-muted">
-                                    Lämna tomt om du använder projekt-rader nedan.
-                                </small>
-                            </div>
-
-                            <div class="mb-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="betald" name="betald">
                                     <label class="form-check-label" for="betald">Betald</label>
+                                </div>
+                            </div>
+
+                            <!-- Slutpris visas här när rader finns -->
+                            <div id="slutprisWrapper" style="display:none;" class="mt-3">
+                                <div class="alert alert-dark mb-0 py-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold">Totalt att betala:</span>
+                                        <span class="fw-bold text-danger fs-5" id="slutprisDisplay">0 kr</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -303,32 +311,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <!-- ================================ -->
                     <div class="mt-4">
                         <h5 class="border-bottom pb-2">
-                            <i class="fas fa-list-ul text-danger"></i> Projekt Rader
+                            <i class="fas fa-list-ul text-danger"></i> Artiklar / Priser
+                            <?php if (!empty($artiklar)): ?>
                             <small class="text-muted fw-normal ms-2">
-                                Timpris arbete: <?php echo number_format($TIMPRIS, 0, ',', ' '); ?> kr/tim
+                                Välj från <?php echo count($artiklar); ?> aktiva artiklar
                             </small>
+                            <?php endif; ?>
                         </h5>
 
                         <div class="table-responsive">
                             <table class="table table-bordered align-middle" id="raderTable">
                                 <thead class="table-dark">
                                     <tr>
-                                        <th style="width: 130px;">Typ</th>
+                                        <th style="width: 220px;">Artikel</th>
                                         <th>Beskrivning</th>
                                         <th style="width: 130px;">Pris (kr)</th>
-                                        <th style="width: 120px;">Antal</th>
+                                        <th style="width: 110px;">Antal</th>
                                         <th style="width: 130px;">Rabatt (kr)</th>
-                                        <th style="width: 110px;">Total (kr)</th>
-                                        <th style="width: 50px;"></th>
+                                        <th style="width: 120px;">Summa (kr)</th>
+                                        <th style="width: 46px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <!-- Rader genereras via JS -->
                                 </tbody>
                                 <tfoot>
-                                    <tr>
+                                    <tr class="table-dark">
                                         <td colspan="5" class="text-end fw-bold">Totalt:</td>
-                                        <td id="grandTotal" class="fw-bold text-danger">0</td>
+                                        <td id="grandTotal" class="fw-bold text-danger fs-6">0,00 kr</td>
                                         <td></td>
                                     </tr>
                                 </tfoot>
@@ -360,7 +370,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const TIMPRIS = <?php echo (int)$TIMPRIS; ?>;
+    const ARTIKLAR = <?php echo $artiklarJson; ?>;
 
     // Auto-uppercase regnummer
     document.getElementById('regnummer').addEventListener('input', function () {
@@ -378,7 +388,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Ansvarig tekniker – visa när status != inkommen
     const statusEl = document.getElementById('status');
     const ansvarigWrapper = document.getElementById('ansvarigWrapper');
-
     function toggleAnsvarig() {
         ansvarigWrapper.style.display = statusEl.value !== 'inkommen' ? 'block' : 'none';
     }
@@ -388,7 +397,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Planerade jobb
     const planDate = document.getElementById('planDate');
     const planeradInfo = document.getElementById('planeradInfo');
-
     function hamtaPlaneradeJobb(datum) {
         if (!datum) { planeradInfo.innerHTML = ''; return; }
         planeradInfo.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin"></i> Kollar lediga tider...</span>';
@@ -403,7 +411,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // RADER - logik
     // ------------------------------------------------
     const tbody = document.querySelector('#raderTable tbody');
-    const grandTotal = document.getElementById('grandTotal');
+    const grandTotalEl = document.getElementById('grandTotal');
+    const slutprisWrapper = document.getElementById('slutprisWrapper');
+    const slutprisDisplay = document.getElementById('slutprisDisplay');
+
+    function formatKr(val) {
+        return val.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' kr';
+    }
 
     function updateGrandTotal() {
         let sum = 0;
@@ -411,66 +425,104 @@ document.addEventListener('DOMContentLoaded', function () {
             const cell = tr.querySelector('.totalCell');
             if (cell) sum += parseFloat(cell.dataset.value) || 0;
         });
-        grandTotal.textContent = formatKr(sum);
+        grandTotalEl.textContent = formatKr(sum);
+
+        const harRader = tbody.querySelectorAll('tr').length > 0;
+        slutprisWrapper.style.display = harRader ? 'block' : 'none';
+        if (slutprisDisplay) slutprisDisplay.textContent = formatKr(sum);
     }
 
-    function formatKr(val) {
-        return val.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    function getArtikelById(id) {
+        return ARTIKLAR.find(a => a.id === parseInt(id)) || null;
     }
 
-    function updateRad(tr) {
-        const typ        = tr.querySelector('.typSelect').value;
-        const prisInput  = tr.querySelector('.prisInput');
-        const antalInput = tr.querySelector('.antalInput');
-        const rabattInput= tr.querySelector('.rabattInput');
-        const totalCell  = tr.querySelector('.totalCell');
+    // Applicera artikelns inställningar på raden (kallas bara när artikel ÄNDRAS)
+    function applyArtikel(tr, artikel) {
+        const artikelIdInput = tr.querySelector('.artikelIdInput');
+        const prisInput      = tr.querySelector('.prisInput');
+        const rabattInput    = tr.querySelector('.rabattInput');
 
-        if (typ === 'arbete') {
-            prisInput.value    = TIMPRIS;
-            prisInput.disabled = true;
-            rabattInput.disabled = false;
+        if (artikelIdInput) artikelIdInput.value = artikel ? artikel.id : '';
+
+        if (artikel) {
+            if (artikel.pris_disabled) {
+                // Pris låst – sätt värde och gör readonly (readonly skickas med formuläret)
+                prisInput.value    = artikel.pris;
+                prisInput.readOnly = true;
+                prisInput.classList.add('pris-locked');
+            } else {
+                // Pris fritt – pre-fyll bara om tomt/noll
+                if (!prisInput.value || parseFloat(prisInput.value) === 0) {
+                    prisInput.value = artikel.pris;
+                }
+                prisInput.readOnly = false;
+                prisInput.classList.remove('pris-locked');
+            }
+            rabattInput.disabled = !artikel.tillat_rabatt;
+            if (rabattInput.disabled) rabattInput.value = '0';
         } else {
-            prisInput.disabled = false;
-            rabattInput.disabled = true;
-            rabattInput.value = '0';
+            prisInput.readOnly = false;
+            prisInput.classList.remove('pris-locked');
+            rabattInput.disabled = false;
         }
+        beraknaTotal(tr);
+    }
 
-        const pris   = parseFloat(prisInput.value) || 0;
-        const antal  = parseFloat(antalInput.value) || 0;
+    // Beräkna rad-totalen (kallas vid varje input-ändring)
+    function beraknaTotal(tr) {
+        const prisInput   = tr.querySelector('.prisInput');
+        const antalInput  = tr.querySelector('.antalInput');
+        const rabattInput = tr.querySelector('.rabattInput');
+        const totalCell   = tr.querySelector('.totalCell');
+
+        const pris   = parseFloat(prisInput.value)   || 0;
+        const antal  = parseFloat(antalInput.value)  || 0;
         const rabatt = parseFloat(rabattInput.value) || 0;
         const total  = (pris * antal) - rabatt;
 
-        totalCell.textContent = formatKr(total);
+        totalCell.textContent   = formatKr(total);
         totalCell.dataset.value = total;
         updateGrandTotal();
     }
 
+    // Bakåtkompatibelt alias
+    function updateRad(tr) { beraknaTotal(tr); }
+
+    function byggArtikelOptions(valdArtikelId) {
+        let opts = '<option value="">-- Välj artikel / anpassad rad --</option>';
+        ARTIKLAR.forEach(a => {
+            const pris = a.pris.toFixed(2).replace('.', ',');
+            opts += `<option value="${a.id}" ${parseInt(valdArtikelId) === a.id ? 'selected' : ''}>`
+                  + `${escHtml(a.namn)} (${pris} kr)</option>`;
+        });
+        return opts;
+    }
+
     function byggRad(index, data) {
+        data = data || {};
         const tr = document.createElement('tr');
         tr.dataset.index = index;
 
-        const typ        = data.typ || 'material';
-        const beskrivning= data.beskrivning || '';
-        const pris       = data.pris || 0;
-        const antal      = data.antal || 1;
-        const rabatt     = data.rabatt || 0;
-        const arArbete   = typ === 'arbete';
+        const artikel_id  = data.artikel_id  || '';
+        const beskrivning = data.beskrivning || '';
+        const pris        = data.pris        !== undefined ? data.pris  : '';
+        const antal       = data.antal       !== undefined ? data.antal : 1;
+        const rabatt      = data.rabatt      !== undefined ? data.rabatt : 0;
 
         tr.innerHTML = `
             <td>
-                <select name="rader[${index}][typ]" class="form-select form-select-sm typSelect">
-                    <option value="material" ${!arArbete ? 'selected' : ''}>Material</option>
-                    <option value="arbete"  ${arArbete  ? 'selected' : ''}>Arbete</option>
+                <select class="form-select form-select-sm artikelSelect">
+                    ${byggArtikelOptions(artikel_id)}
                 </select>
+                <input type="hidden" name="rader[${index}][artikel_id]" class="artikelIdInput" value="${artikel_id}">
             </td>
             <td>
-                <input type="text" name="rader[${index}][beskrivning]" class="form-control form-control-sm"
-                       value="${escHtml(beskrivning)}" placeholder="Beskrivning..." required>
+                <input type="text" name="rader[${index}][beskrivning]" class="form-control form-control-sm beskrivningInput"
+                       value="${escHtml(beskrivning)}" placeholder="Beskrivning...">
             </td>
             <td>
                 <input type="number" name="rader[${index}][pris]" class="form-control form-control-sm prisInput"
-                       value="${arArbete ? TIMPRIS : pris}" step="0.01" min="0"
-                       ${arArbete ? 'disabled' : ''}>
+                       value="${pris}" step="0.01" min="0" placeholder="0">
             </td>
             <td>
                 <input type="number" name="rader[${index}][antal]" class="form-control form-control-sm antalInput"
@@ -478,12 +530,11 @@ document.addEventListener('DOMContentLoaded', function () {
             </td>
             <td>
                 <input type="number" name="rader[${index}][rabatt]" class="form-control form-control-sm rabattInput"
-                       value="${rabatt}" step="0.01" min="0"
-                       ${!arArbete ? 'disabled' : ''}>
+                       value="${rabatt}" step="0.01" min="0">
             </td>
-            <td class="totalCell" data-value="0">0</td>
+            <td class="totalCell fw-semibold text-danger" data-value="0">0,00 kr</td>
             <td>
-                <button type="button" class="btn btn-danger btn-sm removeRadBtn" title="Ta bort rad">
+                <button type="button" class="btn btn-outline-danger btn-sm removeRadBtn" title="Ta bort rad">
                     <i class="fas fa-trash"></i>
                 </button>
             </td>`;
@@ -492,27 +543,35 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function escHtml(str) {
         return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/"/g, '&quot;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
+            .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     document.getElementById('addRadBtn').addEventListener('click', function () {
         const index = tbody.querySelectorAll('tr').length;
         const tr = byggRad(index, {});
         tbody.appendChild(tr);
-        updateRad(tr);
+        beraknaTotal(tr);
     });
 
     tbody.addEventListener('change', function (e) {
         const tr = e.target.closest('tr');
-        if (tr) updateRad(tr);
+        if (!tr) return;
+        if (e.target.classList.contains('artikelSelect')) {
+            const artikel = e.target.value ? getArtikelById(e.target.value) : null;
+            const beskEl  = tr.querySelector('.beskrivningInput');
+            if (artikel && beskEl && beskEl.value.trim() === '') {
+                beskEl.value = artikel.namn;
+            }
+            applyArtikel(tr, artikel);
+        } else {
+            beraknaTotal(tr);
+        }
     });
 
     tbody.addEventListener('input', function (e) {
         const tr = e.target.closest('tr');
-        if (tr) updateRad(tr);
+        if (tr) beraknaTotal(tr);
     });
 
     tbody.addEventListener('click', function (e) {
@@ -524,5 +583,15 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+
+<style>
+/* Låst pris – ser ut som disabled men skickas med formuläret */
+.prisInput[readonly], .pris-locked {
+    background-color: #e9ecef !important;
+    cursor: not-allowed;
+    color: #6c757d;
+    opacity: 1;
+}
+</style>
 
 <?php include '../includes/footer.php'; ?>

@@ -172,7 +172,7 @@ $till = min($sida * $perSida, $total);
                 </thead>
                 <tbody>
                     <?php foreach ($projekt as $p): ?>
-                    <tr class="projekt-rad <?php echo !empty($p['flagga']) ? 'rad-flaggad' : ''; ?>"
+                    <tr class="projekt-rad <?php echo !empty($p['flagga']) ? 'rad-flaggad' : ($p['betald'] ? 'rad-betald' : 'rad-obetald'); ?>"
                         onclick="window.location.href='projekt_visa.php?id=<?php echo $p['id']; ?>'">
                         <td class="rad-indikator p-0">
                             <?php if (!empty($p['flagga'])): ?>
@@ -502,8 +502,14 @@ document.addEventListener('DOMContentLoaded', function () {
     background: #dc3545;
     border-radius: 3px 0 0 3px;
 }
-.rad-flaggad { background: #fff9f9; }
-.rad-flaggad:hover { background: #fdf3f4; }
+.rad-flaggad        { background: #fff9f9; }
+.rad-flaggad:hover  { background: #fdf3f4; }
+
+/* Betalstatus-bakgrunder */
+.rad-betald         { background: rgba(25, 135, 84, 0.07); }
+.rad-betald:hover   { background: rgba(25, 135, 84, 0.16) !important; box-shadow: inset 0 0 0 1px rgba(25,135,84,.2); }
+.rad-obetald        { background: rgba(220, 53, 69, 0.06); }
+.rad-obetald:hover  { background: rgba(220, 53, 69, 0.13) !important; box-shadow: inset 0 0 0 1px rgba(220,53,69,.15); }
 
 /* Regnr-pill */
 .regnr-pill {

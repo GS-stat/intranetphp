@@ -139,7 +139,7 @@ $notiser = getDashboardNotiser($pdo);
                         <tbody>
                             <?php foreach (array_slice($projekt, 0, 10) as $p): ?>
                             <tr onclick="window.location.href='projekt_visa.php?id=<?php echo $p['id']; ?>'"
-                                class="<?php echo !empty($p['flagga']) ? 'db-rad-flaggad' : ''; ?>">
+                                class="<?php echo !empty($p['flagga']) ? 'db-rad-flaggad' : ($p['betald'] ? 'db-rad-betald' : 'db-rad-obetald'); ?>">
                                 <td class="db-rad-indikator p-0">
                                     <?php if (!empty($p['flagga'])): ?>
                                         <div class="db-flagg-linje"></div>
@@ -534,7 +534,11 @@ $('#refreshStats').click(function() {
     width: 6px; min-height: 44px; height: 100%;
     background: #dc3545; border-radius: 3px 0 0 3px;
 }
-.db-rad-flaggad { background: #fff9f9; }
+.db-rad-flaggad   { background: #fff9f9; }
+.db-rad-betald    { background: rgba(25, 135, 84, 0.07); }
+.db-rad-betald:hover  { background: rgba(25, 135, 84, 0.16) !important; }
+.db-rad-obetald   { background: rgba(220, 53, 69, 0.06); }
+.db-rad-obetald:hover { background: rgba(220, 53, 69, 0.13) !important; }
 
 .db-regnr-pill {
     display: inline-block;
@@ -550,7 +554,7 @@ $('#refreshStats').click(function() {
     white-space: nowrap;
 }
 .db-betald-ja  { color: #198754; font-size: 0.75rem; }
-.db-betald-nej { color: #adb5bd; font-size: 0.75rem; }
+.db-betald-nej { color: #b8110b; font-size: 0.75rem; }
 </style>
 
 <?php include '../includes/footer.php'; ?>
