@@ -146,6 +146,90 @@ function skickaSmsKvittens($pdo, int $projekt_id): bool {
 }
 
 /**
+ * Skicka bokningsbekräftelse via SMS när planDate sätts eller ändras.
+ * Skickas bara om planDate är nytt (skiljer sig från sms_bokning_datum i DB).
+ */
+function skickaSmsBokning($pdo, int $projekt_id, string $nyPlanDate, ?string $starttid = null): bool {
+    smsLog("skickaSmsBokning() anropad — projekt_id: $projekt_id, nyPlanDate: $nyPlanDate");
+
+    if (!SMS_ENABLED) {
+        smsLog("AVBROTT: SMS_ENABLED = false");
+        return false;
+    }
+
+    if (empty($nyPlanDate)) {
+        smsLog("AVBROTT: inget planDate angivet");
+        return false;
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT id, regnummer, rubrik, kontakt_person_namn,
+                   kontakt_person_telefon, sms_bokning_datum
+            FROM stat_projekt WHERE id = ?
+        ");
+        $stmt->execute([$projekt_id]);
+        $p = $stmt->fetch();
+
+        if (!$p) {
+            smsLog("AVBROTT: projekt $projekt_id hittades inte");
+            return false;
+        }
+
+        smsLog("Projekt hämtat — regnr: {$p['regnummer']}, telefon: '{$p['kontakt_person_telefon']}', sms_bokning_datum: '{$p['sms_bokning_datum']}'");
+
+        // Skicka bara om datumet är nytt eller ändrat
+        if ($p['sms_bokning_datum'] === $nyPlanDate) {
+            smsLog("AVBROTT: boknings-SMS redan skickat för datum $nyPlanDate");
+            return false;
+        }
+
+        // Formatera datum på svenska: "måndag 21 april"
+        $ts       = strtotime($nyPlanDate);
+        $dagar    = ['Sunday'=>'söndag','Monday'=>'måndag','Tuesday'=>'tisdag',
+                     'Wednesday'=>'onsdag','Thursday'=>'torsdag','Friday'=>'fredag','Saturday'=>'lördag'];
+        $manader  = ['January'=>'januari','February'=>'februari','March'=>'mars',
+                     'April'=>'april','May'=>'maj','June'=>'juni','July'=>'juli',
+                     'August'=>'augusti','September'=>'september','October'=>'oktober',
+                     'November'=>'november','December'=>'december'];
+        $dagNamn  = $dagar[date('l', $ts)]  ?? date('l', $ts);
+        $manNamn  = $manader[date('F', $ts)] ?? date('F', $ts);
+        $datumStr = $dagNamn . ' ' . date('j', $ts) . ' ' . $manNamn;
+
+        $tidStr = '';
+        if (!empty($starttid)) {
+            $tidStr = ' kl. ' . substr($starttid, 0, 5);
+        }
+
+        $text = "Hej {$p['kontakt_person_namn']}! "
+              . "Din bil {$p['regnummer']} är inbokad hos GS Motors "
+              . $datumStr . $tidStr . ". "
+              . "Möjlighet att lämna i förtid finns. "
+              . "Ring oss: " . KONTAKT_TELEFON
+              . " // GS Motors";
+
+        smsLog("Boknings-SMS text: '$text'");
+        smsLog("Meddelandelängd: " . mb_strlen($text) . " tecken");
+
+        $resultat = skickaSms($p['kontakt_person_telefon'], $text);
+
+        if ($resultat) {
+            $pdo->prepare("UPDATE stat_projekt SET sms_bokning_datum = ? WHERE id = ?")
+                ->execute([$nyPlanDate, $projekt_id]);
+            smsLog("sms_bokning_datum = '$nyPlanDate' sparat i databasen");
+        } else {
+            smsLog("skickaSms() returnerade false — sms_bokning_datum uppdateras ej");
+        }
+
+        return $resultat;
+
+    } catch (PDOException $e) {
+        smsLog("PDOException i skickaSmsBokning: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * Normalisera telefonnummer till E.164 (+46...)
  * Hanterar: 07XXXXXXXX, 0046XXXXXXXX, +46XXXXXXXX
  */

@@ -76,6 +76,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_project'])) {
             sparaProjektRader($pdo, $id, $nyaRader);
 
             require_once '../includes/sms.php';
+
+            // Boknings-SMS: skickas om planDate är nytt/ändrat
+            if (!empty($data['planDate'])) {
+                skickaSmsBokning($pdo, $id, $data['planDate'], $data['starttid'] ?? null);
+            }
+
+            // Kvittens-SMS: skickas om avslutad + betald
             skickaSmsKvittens($pdo, $id);
 
             header('Location: projekt_visa.php?id=' . $id . '&meddelande=Projekt+uppdaterat');

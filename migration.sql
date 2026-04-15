@@ -72,6 +72,12 @@ CREATE TABLE IF NOT EXISTS `stat_projekt_rader` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ──────────────────────────────────────────────────────────
+-- 5b. Spårning av boknings-SMS (vilket datum vi senast skickade)
+-- ──────────────────────────────────────────────────────────
+ALTER TABLE `stat_projekt`
+    ADD COLUMN IF NOT EXISTS `sms_bokning_datum` DATE NULL COMMENT 'Datum vi skickade boknings-SMS för';
+
+-- ──────────────────────────────────────────────────────────
 -- 6. Projektkostnader (interna – syns aldrig för kund)
 -- ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `stat_projekt_kostnader` (
