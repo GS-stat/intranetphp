@@ -74,6 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             skickaOrderBekraftelse($data['kontakt_person_email'], $projektData);
         }
 
+        // Boknings-SMS om planDate är satt
+        if (!empty($data['planDate'])) {
+            require_once '../includes/sms.php';
+            skickaSmsBokning($pdo, $projekt_id, $data['planDate'], $data['starttid'] ?? null);
+        }
+
         header('Location: projekt_lista.php?meddelande=Projekt+skapat');
         exit;
     } else {
