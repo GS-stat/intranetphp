@@ -113,10 +113,47 @@ CREATE TABLE IF NOT EXISTS `stat_utgifter` (
     INDEX `idx_utgift_kategori` (`kategori`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ──────────────────────────────────────────────────────────
+-- 8. Systemuppdateringar + läst-spårning per användare
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `stat_uppdateringar` (
+    `id`      INT           NOT NULL AUTO_INCREMENT,
+    `slug`    VARCHAR(100)  NOT NULL UNIQUE COMMENT 'Unikt ID för denna uppdatering',
+    `titel`   VARCHAR(255)  NOT NULL,
+    `innehall` TEXT         NOT NULL COMMENT 'JSON-array med punkter',
+    `skapad`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `stat_uppdatering_sedd` (
+    `anvandare_id`   INT NOT NULL,
+    `uppdatering_id` INT NOT NULL,
+    `sedd_datum`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`anvandare_id`, `uppdatering_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Lägg in uppdatering 2025-04 (idempotent via INSERT IGNORE)
+INSERT IGNORE INTO `stat_uppdateringar` (`slug`, `titel`, `innehall`, `skapad`) VALUES (
+    'april-2025-kostnader-sms-arbetsorder',
+    'Nytt: Kostnader, SMS och digital arbetsorder',
+    '[
+        {"ikon":"💰","rubrik":"Projektkostnader","text":"Du kan nu registrera kostnader direkt på ett projekt – t.ex. reservdelar eller material. Öppna ett projekt och scrolla ner till avsnittet Kostnader. Systemet räknar automatiskt ut vinsten för projektet."},
+        {"ikon":"📊","rubrik":"Allmänna utgifter","text":"Under Ekonomi → Allmänna utgifter registrerar du löpande kostnader som hyra, el, försäkringar och liknande. Återkommande utgifter räknas in automatiskt varje månad i ekonomiöversikten."},
+        {"ikon":"📈","rubrik":"Ekonomiöversikt","text":"Nytt avsnitt under Ekonomi med en samlad bild av intäkter, kostnader och vinst – per månad och per projekt. Här ser du hur verksamheten mår ekonomiskt."},
+        {"ikon":"📱","rubrik":"SMS – bokningsbekräftelse","text":"När du fyller i Planerat datum på ett projekt skickas ett SMS automatiskt till kunden med datum, tid och vägbeskrivning till verkstan. Inget du behöver tänka på – det sker direkt."},
+        {"ikon":"🔗","rubrik":"SMS – digital arbetsorder","text":"När ett projekt markeras som Avslutad och Betald skickas ett SMS till kunden med en länk och en personlig PIN-kod. Kunden kan då öppna och läsa sin arbetsorder direkt i mobilen."},
+        {"ikon":"📋","rubrik":"Digital arbetsorder för kunden","text":"Kunden ser fordon, uppdrag, åtgärd, priser och kontaktuppgifter i en snygg mobilanpassad sida. Länken är giltig i 7 dagar."},
+        {"ikon":"⚠️","rubrik":"Viktigt att tänka på","text":"För att SMS ska skickas måste kundens telefonnummer vara ifyllt i formatet 07XXXXXXXX (10 siffror). Saknas numret skickas inget SMS. Kontrollera gärna befintliga projekt."}
+    ]',
+    '2025-04-15 00:00:00'
+);
+
 -- ==========================================================
 -- Verifiera efter körning:
 --   SHOW COLUMNS FROM stat_projekt;
 --   SHOW CREATE TABLE stat_projekt_rader;
 --   SHOW CREATE TABLE stat_projekt_kostnader;
 --   SHOW CREATE TABLE stat_utgifter;
+--   SHOW CREATE TABLE stat_uppdateringar;
+--   SHOW CREATE TABLE stat_uppdatering_sedd;
 -- ==========================================================
