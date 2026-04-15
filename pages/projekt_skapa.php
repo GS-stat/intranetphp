@@ -209,7 +209,10 @@ $artiklarJson = json_encode(array_map(fn($a) => [
                             <div class="mb-3">
                                 <label for="kontakt_person_telefon" class="form-label">Telefon *</label>
                                 <input type="tel" class="form-control" id="kontakt_person_telefon"
-                                       name="kontakt_person_telefon" required placeholder="0730730009">
+                                       name="kontakt_person_telefon" required
+                                       pattern="07[0-9]{8}"
+                                       placeholder="0730000000"
+                                       title="Ange svenskt mobilnummer: 07XXXXXXXX (10 siffror)">
                             </div>
 
                             <div class="mb-3">

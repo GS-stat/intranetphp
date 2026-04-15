@@ -251,6 +251,9 @@ $raderJson = json_encode(array_map(fn($r) => [
                         <label for="kontakt_person_telefon" class="form-label">Telefon *</label>
                         <input type="tel" class="form-control" id="kontakt_person_telefon"
                                name="kontakt_person_telefon" required
+                               pattern="07[0-9]{8}"
+                               placeholder="0730000000"
+                               title="Ange svenskt mobilnummer: 07XXXXXXXX (10 siffror)"
                                value="<?php echo htmlspecialchars($projekt['kontakt_person_telefon']); ?>">
                     </div>
 

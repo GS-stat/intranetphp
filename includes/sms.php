@@ -234,12 +234,16 @@ function skickaSmsBokning($pdo, int $projekt_id, string $nyPlanDate, ?string $st
  * Hanterar: 07XXXXXXXX, 0046XXXXXXXX, +46XXXXXXXX
  */
 function normaliseTelefon(string $nr) {
-    $rensat = preg_replace('/[^0-9+]/', '', $nr);
+    // Förväntat format: 07XXXXXXXX (10 siffror)
+    $rensat = preg_replace('/[^0-9]/', '', $nr);
     smsLog("normaliseTelefon: '$nr' → rensat: '$rensat'");
 
-    if (str_starts_with($rensat, '+46'))  return $rensat;
-    if (str_starts_with($rensat, '0046')) return '+46' . substr($rensat, 4);
-    if (str_starts_with($rensat, '0'))    return '+46' . substr($rensat, 1);
+    if (strlen($rensat) === 10 && substr($rensat, 0, 2) === '07') {
+        $e164 = '+46' . substr($rensat, 1);
+        smsLog("normaliseTelefon: OK → $e164");
+        return $e164;
+    }
 
+    smsLog("normaliseTelefon: OGILTIGT format — förväntar 07XXXXXXXX, fick '$rensat'");
     return false;
 }
