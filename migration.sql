@@ -71,8 +71,46 @@ CREATE TABLE IF NOT EXISTS `stat_projekt_rader` (
         ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ──────────────────────────────────────────────────────────
+-- 6. Projektkostnader (interna – syns aldrig för kund)
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `stat_projekt_kostnader` (
+    `id`           INT           NOT NULL AUTO_INCREMENT,
+    `projekt_id`   INT           NOT NULL,
+    `beskrivning`  VARCHAR(500)  NOT NULL,
+    `belopp`       DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `moms_procent` TINYINT       NOT NULL DEFAULT 25  COMMENT '0, 12 eller 25',
+    `datum`        DATE          NOT NULL,
+    `skapad`       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    INDEX `idx_pk_projekt` (`projekt_id`),
+    CONSTRAINT `fk_pk_projekt`
+        FOREIGN KEY (`projekt_id`) REFERENCES `stat_projekt` (`id`)
+        ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ──────────────────────────────────────────────────────────
+-- 7. Allmänna utgifter (hyra, el, mat osv – ej projektkopplade)
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `stat_utgifter` (
+    `id`             INT           NOT NULL AUTO_INCREMENT,
+    `kategori`       VARCHAR(100)  NOT NULL DEFAULT 'Övrigt',
+    `beskrivning`    VARCHAR(500)  NOT NULL,
+    `belopp`         DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `moms_procent`   TINYINT       NOT NULL DEFAULT 25  COMMENT '0, 12 eller 25',
+    `datum`          DATE          NOT NULL,
+    `aterkommande`   TINYINT(1)    NOT NULL DEFAULT 0   COMMENT '1 = räknas in varje månad',
+    `aktiv`          TINYINT(1)    NOT NULL DEFAULT 1,
+    `skapad`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    INDEX `idx_utgift_datum` (`datum`),
+    INDEX `idx_utgift_kategori` (`kategori`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ==========================================================
 -- Verifiera efter körning:
 --   SHOW COLUMNS FROM stat_projekt;
 --   SHOW CREATE TABLE stat_projekt_rader;
+--   SHOW CREATE TABLE stat_projekt_kostnader;
+--   SHOW CREATE TABLE stat_utgifter;
 -- ==========================================================

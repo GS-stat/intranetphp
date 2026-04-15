@@ -8,6 +8,7 @@ $kundTypStatistik = getKundTypStatistik($pdo);
 $manadsStatistik = getManadsStatistik($pdo);
 $projekt = hamtaAllaProjekt($pdo);
 $notiser = getDashboardNotiser($pdo);
+$ekonomi = getDashboardEkonomi($pdo);
 ?>
 <?php include '../includes/header.php'; ?>
 
@@ -57,6 +58,69 @@ $notiser = getDashboardNotiser($pdo);
         </div>
     </div>
 </div>
+<!-- Ekonomi-rad (denna månad) -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0" style="background:#f8f9fa;">
+            <div class="card-body py-2 px-3">
+                <div class="row g-2 align-items-center">
+                    <div class="col-auto">
+                        <small class="text-muted fw-semibold text-uppercase" style="font-size:.72rem;letter-spacing:.05em;">
+                            <i class="fas fa-coins me-1"></i> Ekonomi – <?php echo date('F Y'); ?>
+                        </small>
+                    </div>
+                    <div class="col">
+                        <div class="row g-2">
+                            <div class="col-md-3 col-6">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-arrow-trend-up text-success"></i>
+                                    <div>
+                                        <div class="small text-muted">Intäkter</div>
+                                        <div class="fw-bold text-success"><?php echo number_format($ekonomi['intakt_manad'], 0, ',', ' '); ?> kr</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-arrow-trend-down text-danger"></i>
+                                    <div>
+                                        <div class="small text-muted">Kostnader</div>
+                                        <div class="fw-bold text-danger"><?php echo number_format($ekonomi['kostnad_manad'], 0, ',', ' '); ?> kr</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-sync-alt text-info"></i>
+                                    <div>
+                                        <div class="small text-muted">Återkommande/mån</div>
+                                        <div class="fw-bold text-info"><?php echo number_format($ekonomi['aterkommande'], 0, ',', ' '); ?> kr</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <?php $nettoFarg = $ekonomi['netto_manad'] >= 0 ? 'success' : 'danger'; ?>
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-scale-balanced text-<?php echo $nettoFarg; ?>"></i>
+                                    <div>
+                                        <div class="small text-muted">Netto</div>
+                                        <div class="fw-bold text-<?php echo $nettoFarg; ?>"><?php echo number_format($ekonomi['netto_manad'], 0, ',', ' '); ?> kr</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <a href="ekonomi.php" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-chart-line"></i> Detaljer
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php if (!empty($notiser)): ?>
 <!-- Notiser / Åtgärdskrävande -->
 <div class="row mb-4">

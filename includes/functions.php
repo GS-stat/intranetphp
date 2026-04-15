@@ -988,4 +988,298 @@ function valideraPublikPin($pdo, int $projekt_id, string $pin): bool {
     if (!$row || empty($row['publik_pin_hash'])) return false;
     return password_verify($pin, $row['publik_pin_hash']);
 }
+
+// ══════════════════════════════════════════════════════════
+// EKONOMI – PROJEKTKOSTNADER
+// ══════════════════════════════════════════════════════════
+
+/**
+ * Hämta kostnader för ett projekt
+ */
+function hamtaProjektKostnader($pdo, int $projekt_id): array {
+    $stmt = $pdo->prepare("SELECT * FROM stat_projekt_kostnader WHERE projekt_id = ? ORDER BY datum DESC, id DESC");
+    $stmt->execute([$projekt_id]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Lägg till projektkostnad
+ */
+function laggTillProjektKostnad($pdo, int $projekt_id, string $beskrivning, float $belopp, int $moms_procent, string $datum): int|false {
+    $stmt = $pdo->prepare("
+        INSERT INTO stat_projekt_kostnader (projekt_id, beskrivning, belopp, moms_procent, datum)
+        VALUES (:projekt_id, :beskrivning, :belopp, :moms_procent, :datum)
+    ");
+    $ok = $stmt->execute([
+        ':projekt_id'   => $projekt_id,
+        ':beskrivning'  => $beskrivning,
+        ':belopp'       => $belopp,
+        ':moms_procent' => $moms_procent,
+        ':datum'        => $datum,
+    ]);
+    return $ok ? (int)$pdo->lastInsertId() : false;
+}
+
+/**
+ * Uppdatera projektkostnad
+ */
+function uppdateraProjektKostnad($pdo, int $id, string $beskrivning, float $belopp, int $moms_procent, string $datum): bool {
+    $stmt = $pdo->prepare("
+        UPDATE stat_projekt_kostnader
+        SET beskrivning = :beskrivning, belopp = :belopp, moms_procent = :moms_procent, datum = :datum
+        WHERE id = :id
+    ");
+    return $stmt->execute([
+        ':beskrivning'  => $beskrivning,
+        ':belopp'       => $belopp,
+        ':moms_procent' => $moms_procent,
+        ':datum'        => $datum,
+        ':id'           => $id,
+    ]);
+}
+
+/**
+ * Radera projektkostnad
+ */
+function raderaProjektKostnad($pdo, int $id): bool {
+    $stmt = $pdo->prepare("DELETE FROM stat_projekt_kostnader WHERE id = ?");
+    return $stmt->execute([$id]);
+}
+
+/**
+ * Beräkna total projektkostnad (exkl. moms)
+ */
+function beraknaTotalProjektKostnad($pdo, int $projekt_id): float {
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(belopp), 0) FROM stat_projekt_kostnader WHERE projekt_id = ?");
+    $stmt->execute([$projekt_id]);
+    return (float)$stmt->fetchColumn();
+}
+
+// ══════════════════════════════════════════════════════════
+// EKONOMI – ALLMÄNNA UTGIFTER
+// ══════════════════════════════════════════════════════════
+
+/**
+ * Hämta alla allmänna utgifter (med valfritt filter på år/månad)
+ */
+function hamtaUtgifter($pdo, ?int $ar = null, ?int $manad = null): array {
+    $where  = ['u.aktiv = 1'];
+    $params = [];
+
+    if ($ar !== null) {
+        $where[]         = 'YEAR(u.datum) = :ar';
+        $params[':ar']   = $ar;
+    }
+    if ($manad !== null) {
+        $where[]           = 'MONTH(u.datum) = :manad';
+        $params[':manad']  = $manad;
+    }
+
+    $whereStr = 'WHERE ' . implode(' AND ', $where);
+
+    $stmt = $pdo->prepare("SELECT * FROM stat_utgifter u $whereStr ORDER BY u.datum DESC, u.id DESC");
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Hämta en enskild utgift
+ */
+function hamtaUtgift($pdo, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM stat_utgifter WHERE id = ?");
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+/**
+ * Spara ny allmän utgift
+ */
+function skapaUtgift($pdo, array $data): int|false {
+    $stmt = $pdo->prepare("
+        INSERT INTO stat_utgifter (kategori, beskrivning, belopp, moms_procent, datum, aterkommande)
+        VALUES (:kategori, :beskrivning, :belopp, :moms_procent, :datum, :aterkommande)
+    ");
+    $ok = $stmt->execute($data);
+    return $ok ? (int)$pdo->lastInsertId() : false;
+}
+
+/**
+ * Uppdatera allmän utgift
+ */
+function uppdateraUtgift($pdo, int $id, array $data): bool {
+    $data[':id'] = $id;
+    $stmt = $pdo->prepare("
+        UPDATE stat_utgifter
+        SET kategori      = :kategori,
+            beskrivning   = :beskrivning,
+            belopp        = :belopp,
+            moms_procent  = :moms_procent,
+            datum         = :datum,
+            aterkommande  = :aterkommande
+        WHERE id = :id
+    ");
+    return $stmt->execute($data);
+}
+
+/**
+ * Mjukradera (inaktivera) allmän utgift
+ */
+function raderaUtgift($pdo, int $id): bool {
+    $stmt = $pdo->prepare("UPDATE stat_utgifter SET aktiv = 0 WHERE id = ?");
+    return $stmt->execute([$id]);
+}
+
+// ══════════════════════════════════════════════════════════
+// EKONOMI – MÅNADSÖVERSIKT (intäkter + kostnader + vinst)
+// ══════════════════════════════════════════════════════════
+
+/**
+ * Hämta ekonomiöversikt per månad för ett givet år.
+ * Returnerar 12 rader (en per månad) med:
+ *   intakter, proj_kostnader, allm_kostnader, aterkommande_per_manad, netto
+ */
+function getEkonomiManadsoversikt($pdo, int $ar): array {
+    // Intäkter (betalda projekt) per månad
+    $stmtI = $pdo->prepare("
+        SELECT MONTH(createdDate) AS manad, COALESCE(SUM(pris), 0) AS intakter
+        FROM stat_projekt
+        WHERE betald = 1 AND YEAR(createdDate) = :ar
+        GROUP BY MONTH(createdDate)
+    ");
+    $stmtI->execute([':ar' => $ar]);
+    $intakter = [];
+    foreach ($stmtI->fetchAll() as $r) $intakter[(int)$r['manad']] = (float)$r['intakter'];
+
+    // Projektkostnader per månad
+    $stmtPK = $pdo->prepare("
+        SELECT MONTH(datum) AS manad, COALESCE(SUM(belopp), 0) AS kostnad
+        FROM stat_projekt_kostnader
+        WHERE YEAR(datum) = :ar
+        GROUP BY MONTH(datum)
+    ");
+    $stmtPK->execute([':ar' => $ar]);
+    $projKostnader = [];
+    foreach ($stmtPK->fetchAll() as $r) $projKostnader[(int)$r['manad']] = (float)$r['kostnad'];
+
+    // Allmänna utgifter (ej återkommande) per månad
+    $stmtU = $pdo->prepare("
+        SELECT MONTH(datum) AS manad, COALESCE(SUM(belopp), 0) AS kostnad
+        FROM stat_utgifter
+        WHERE aktiv = 1 AND aterkommande = 0 AND YEAR(datum) = :ar
+        GROUP BY MONTH(datum)
+    ");
+    $stmtU->execute([':ar' => $ar]);
+    $almKostnader = [];
+    foreach ($stmtU->fetchAll() as $r) $almKostnader[(int)$r['manad']] = (float)$r['kostnad'];
+
+    // Återkommande utgifter – summa per månad (gäller alla månader)
+    $stmtR = $pdo->prepare("
+        SELECT COALESCE(SUM(belopp), 0) AS summa
+        FROM stat_utgifter
+        WHERE aktiv = 1 AND aterkommande = 1
+    ");
+    $stmtR->execute();
+    $aterkommandeSumma = (float)$stmtR->fetchColumn();
+
+    $manader = [];
+    for ($m = 1; $m <= 12; $m++) {
+        $i  = $intakter[$m]      ?? 0;
+        $pk = $projKostnader[$m] ?? 0;
+        $ak = ($almKostnader[$m] ?? 0) + $aterkommandeSumma;
+        $manader[$m] = [
+            'manad'              => $m,
+            'intakter'           => $i,
+            'proj_kostnader'     => $pk,
+            'allm_kostnader'     => $ak,
+            'totala_kostnader'   => $pk + $ak,
+            'netto'              => $i - $pk - $ak,
+        ];
+    }
+    return $manader;
+}
+
+/**
+ * Hämta ekonomisummering för hela året
+ */
+function getEkonomiArssummering($pdo, int $ar): array {
+    $manader = getEkonomiManadsoversikt($pdo, $ar);
+    $sum = ['intakter' => 0, 'proj_kostnader' => 0, 'allm_kostnader' => 0, 'totala_kostnader' => 0, 'netto' => 0];
+    foreach ($manader as $m) {
+        foreach ($sum as $k => $_) $sum[$k] += $m[$k];
+    }
+    return $sum;
+}
+
+/**
+ * Hämta projekt med vinst (intäkt − projektkostnader)
+ */
+function getProjektMedVinst($pdo, int $ar): array {
+    $stmt = $pdo->prepare("
+        SELECT
+            p.id,
+            p.regnummer,
+            p.rubrik,
+            p.kontakt_person_namn,
+            p.status,
+            p.betald,
+            p.createdDate,
+            COALESCE(p.pris, 0)                          AS intakt,
+            COALESCE(SUM(pk.belopp), 0)                  AS kostnader,
+            COALESCE(p.pris, 0) - COALESCE(SUM(pk.belopp), 0) AS vinst
+        FROM stat_projekt p
+        LEFT JOIN stat_projekt_kostnader pk ON pk.projekt_id = p.id
+        WHERE YEAR(p.createdDate) = :ar
+        GROUP BY p.id
+        ORDER BY p.createdDate DESC
+    ");
+    $stmt->execute([':ar' => $ar]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Hämta ekonomiöversikt för dashboard (innevarande månad + år totalt)
+ */
+function getDashboardEkonomi($pdo): array {
+    $ar    = (int)date('Y');
+    $manad = (int)date('n');
+
+    // Intäkter betalda denna månad
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(pris), 0) FROM stat_projekt
+        WHERE betald = 1 AND YEAR(createdDate) = ? AND MONTH(createdDate) = ?
+    ");
+    $stmt->execute([$ar, $manad]);
+    $intaktMaand = (float)$stmt->fetchColumn();
+
+    // Projektkostnader denna månad
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(belopp), 0) FROM stat_projekt_kostnader
+        WHERE YEAR(datum) = ? AND MONTH(datum) = ?
+    ");
+    $stmt->execute([$ar, $manad]);
+    $projKostMaand = (float)$stmt->fetchColumn();
+
+    // Allmänna utgifter (ej återkommande) denna månad
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(belopp), 0) FROM stat_utgifter
+        WHERE aktiv = 1 AND aterkommande = 0 AND YEAR(datum) = ? AND MONTH(datum) = ?
+    ");
+    $stmt->execute([$ar, $manad]);
+    $almKostMaand = (float)$stmt->fetchColumn();
+
+    // Återkommande utgifter
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(belopp), 0) FROM stat_utgifter WHERE aktiv = 1 AND aterkommande = 1");
+    $stmt->execute();
+    $aterkommande = (float)$stmt->fetchColumn();
+
+    $totalKostMaand = $projKostMaand + $almKostMaand + $aterkommande;
+
+    return [
+        'intakt_manad'    => $intaktMaand,
+        'kostnad_manad'   => $totalKostMaand,
+        'netto_manad'     => $intaktMaand - $totalKostMaand,
+        'aterkommande'    => $aterkommande,
+    ];
+}
 ?>

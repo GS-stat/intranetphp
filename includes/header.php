@@ -66,6 +66,19 @@
                             </a></li>
                         </ul>
                     </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-coins"></i> Ekonomi
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="ekonomi.php">
+                                <i class="fas fa-chart-line me-1"></i> Ekonomiöversikt
+                            </a></li>
+                            <li><a class="dropdown-item" href="utgifter_lista.php">
+                                <i class="fas fa-receipt me-1"></i> Allmänna utgifter
+                            </a></li>
+                        </ul>
+                    </li>
                     <?php if (arAdmin()): ?>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
