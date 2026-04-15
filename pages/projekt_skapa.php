@@ -76,8 +76,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         // Boknings-SMS om planDate är satt
         if (!empty($data['planDate'])) {
-            require_once '../includes/sms.php';
-            skickaSmsBokning($pdo, $projekt_id, $data['planDate'], $data['starttid'] ?? null);
+            try {
+                require_once '../includes/sms.php';
+                skickaSmsBokning($pdo, $projekt_id, $data['planDate'], $data['starttid'] ?? null);
+            } catch (Throwable $e) {
+                error_log('[SMS] Fel i projekt_skapa: ' . $e->getMessage());
+            }
         }
 
         header('Location: projekt_lista.php?meddelande=Projekt+skapat');

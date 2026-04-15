@@ -233,7 +233,7 @@ function skickaSmsBokning($pdo, int $projekt_id, string $nyPlanDate, ?string $st
  * Normalisera telefonnummer till E.164 (+46...)
  * Hanterar: 07XXXXXXXX, 0046XXXXXXXX, +46XXXXXXXX
  */
-function normaliseTelefon(string $nr): string|false {
+function normaliseTelefon(string $nr) {
     $rensat = preg_replace('/[^0-9+]/', '', $nr);
     smsLog("normaliseTelefon: '$nr' → rensat: '$rensat'");
 
