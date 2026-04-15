@@ -201,9 +201,10 @@ function skickaSmsBokning($pdo, int $projekt_id, string $nyPlanDate, ?string $st
         $text = "Hej {$p['kontakt_person_namn']}! "
               . "Din bil {$p['regnummer']} är inbokad hos GS Motors "
               . $datumStr . $tidStr . ". "
+              . "Adress: Åkervägen 10, 17741 Järfälla. "
               . "Möjlighet att lämna i förtid finns. "
               . "Ring oss: " . KONTAKT_TELEFON
-              . " // GS Motors";
+              . " // GS Motors AB";
 
         smsLog("Boknings-SMS text: '$text'");
         smsLog("Meddelandelängd: " . mb_strlen($text) . " tecken");

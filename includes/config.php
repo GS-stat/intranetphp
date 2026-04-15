@@ -13,7 +13,7 @@ define('DB_PASS', 'fGdN^J}qP6$B');
 // SAJT-URL  (utan avslutande slash)
 // Används i SMS-länk och e-post
 // ──────────────────────────────────────────────
-define('SITE_URL', 'https://gsmotors.se');
+define('SITE_URL', 'https://stat.gsmotors.se');
 
 // ──────────────────────────────────────────────
 // E-POST
