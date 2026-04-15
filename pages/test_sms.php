@@ -36,8 +36,9 @@ ut('');
 // ── STEG 2: PHP-version ────────────────────────────────
 ut('── STEG 2: PHP-miljö ─────────────────────────', 'rubrik');
 ut('PHP-version   : ' . PHP_VERSION, version_compare(PHP_VERSION, '7.4', '>=') ? 'ok' : 'fel');
-ut('cURL          : ' . (function_exists('curl_init') ? 'tillgängligt ✓' : 'SAKNAS ✗'), function_exists('curl_init') ? 'ok' : 'fel');
-ut('mbstring      : ' . (function_exists('mb_strlen') ? 'tillgängligt ✓' : 'SAKNAS ✗'), function_exists('mb_strlen') ? 'ok' : 'fel');
+ut('cURL             : ' . (function_exists('curl_init') ? 'tillgängligt ✓' : 'SAKNAS ✗'), function_exists('curl_init') ? 'ok' : 'fel');
+ut('mbstring         : ' . (function_exists('mb_strlen') ? 'tillgängligt ✓' : 'SAKNAS ✗'), function_exists('mb_strlen') ? 'ok' : 'fel');
+ut('allow_url_fopen  : ' . (ini_get('allow_url_fopen') ? 'ON ✓' : 'OFF ✗ — file_get_contents kan ej göra HTTP-anrop!'), ini_get('allow_url_fopen') ? 'ok' : 'fel');
 ut('');
 
 // ── STEG 3: Databas — kontrollera kolumner ─────────────
@@ -79,26 +80,53 @@ if ($tillNummer) {
         ut('Payload: ' . json_encode($payload));
         ut('Anropar https://api.46elks.com/a1/sms ...');
 
-        $context = stream_context_create([
-            'http' => [
-                'method'  => 'POST',
-                'header'  => 'Authorization: Basic ' . base64_encode(SMS_API_USER . ':' . SMS_API_PASS) . "\r\n"
-                           . "Content-type: application/x-www-form-urlencoded\r\n",
-                'content' => http_build_query($payload, '', '&'),
-                'timeout' => 10,
-            ]
-        ]);
+        // Försök 1: file_get_contents
+        ut('--- Metod 1: file_get_contents ---');
+        $urlFopenOn = ini_get('allow_url_fopen');
+        ut('allow_url_fopen: ' . ($urlFopenOn ? 'ON' : 'OFF'), $urlFopenOn ? 'ok' : 'fel');
 
-        $response = @file_get_contents('https://api.46elks.com/a1/sms', false, $context);
-        $header   = isset($http_response_header[0]) ? $http_response_header[0] : '(inget svar)';
-
-        ut("HTTP-svar: $header", (strpos($header,'200') !== false) ? 'ok' : 'fel');
-        ut("46elks body: " . ($response ?: '(tomt)'), (strpos($header,'200') !== false) ? 'ok' : 'fel');
-
-        if (strpos($header, '200') !== false || strpos($header, '201') !== false) {
-            ut('SMS SKICKAT ✓', 'ok');
+        if ($urlFopenOn) {
+            $context = stream_context_create([
+                'http' => [
+                    'method'  => 'POST',
+                    'header'  => 'Authorization: Basic ' . base64_encode(SMS_API_USER . ':' . SMS_API_PASS) . "\r\n"
+                               . "Content-type: application/x-www-form-urlencoded\r\n",
+                    'content' => http_build_query($payload, '', '&'),
+                    'timeout' => 10,
+                ]
+            ]);
+            $response = @file_get_contents('https://api.46elks.com/a1/sms', false, $context);
+            $header   = isset($http_response_header[0]) ? $http_response_header[0] : '(inget svar)';
+            ut("HTTP: $header", strpos($header,'200') !== false ? 'ok' : 'fel');
+            ut("Body: " . ($response ?: '(tomt)'), strpos($header,'200') !== false ? 'ok' : 'fel');
         } else {
-            ut('SMS NEKADES ✗', 'fel');
+            ut('Hoppar över — allow_url_fopen är OFF', 'fel');
+        }
+
+        // Försök 2: cURL
+        ut('--- Metod 2: cURL ---');
+        if (function_exists('curl_init')) {
+            $ch = curl_init('https://api.46elks.com/a1/sms');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_USERPWD        => SMS_API_USER . ':' . SMS_API_PASS,
+                CURLOPT_POSTFIELDS     => http_build_query($payload, '', '&'),
+                CURLOPT_TIMEOUT        => 10,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            $curlResp  = curl_exec($ch);
+            $httpKod   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr   = curl_error($ch);
+            curl_close($ch);
+            if ($curlErr) {
+                ut("cURL-fel: $curlErr", 'fel');
+            } else {
+                ut("HTTP-kod: $httpKod", ($httpKod >= 200 && $httpKod < 300) ? 'ok' : 'fel');
+                ut("Body: " . ($curlResp ?: '(tomt)'), ($httpKod >= 200 && $httpKod < 300) ? 'ok' : 'fel');
+            }
+        } else {
+            ut('cURL saknas', 'fel');
         }
     }
 } else {
