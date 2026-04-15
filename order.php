@@ -432,10 +432,22 @@ $orgnr        = '559550-2062';
             <span style="font-size:.9rem;"><?php echo nl2br(esc($projekt['beskrivning'])); ?></span>
         </div>
         <?php endif; ?>
+        <?php if (!empty($projekt['felsokning'])): ?>
+        <div class="info-row" style="flex-direction:column;gap:4px;">
+            <span class="info-label">Felsökning</span>
+            <span style="font-size:.9rem;"><?php echo nl2br(esc($projekt['felsokning'])); ?></span>
+        </div>
+        <?php endif; ?>
         <?php if (!empty($projekt['atgard'])): ?>
         <div class="info-row" style="flex-direction:column;gap:4px;">
             <span class="info-label">Åtgärd</span>
             <span style="font-size:.9rem;"><?php echo nl2br(esc($projekt['atgard'])); ?></span>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($projekt['pris'])): ?>
+        <div class="info-row">
+            <span class="info-label">Pris</span>
+            <span class="info-value"><?php echo number_format((float)$projekt['pris'], 0, ',', ' '); ?> kr</span>
         </div>
         <?php endif; ?>
         <?php if (!empty($projekt['planDate'])): ?>
