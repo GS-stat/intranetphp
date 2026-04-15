@@ -1005,7 +1005,7 @@ function hamtaProjektKostnader($pdo, int $projekt_id): array {
 /**
  * Lägg till projektkostnad
  */
-function laggTillProjektKostnad($pdo, int $projekt_id, string $beskrivning, float $belopp, int $moms_procent, string $datum): int|false {
+function laggTillProjektKostnad($pdo, int $projekt_id, string $beskrivning, float $belopp, int $moms_procent, string $datum) {
     $stmt = $pdo->prepare("
         INSERT INTO stat_projekt_kostnader (projekt_id, beskrivning, belopp, moms_procent, datum)
         VALUES (:projekt_id, :beskrivning, :belopp, :moms_procent, :datum)
@@ -1095,7 +1095,7 @@ function hamtaUtgift($pdo, int $id): ?array {
 /**
  * Spara ny allmän utgift
  */
-function skapaUtgift($pdo, array $data): int|false {
+function skapaUtgift($pdo, array $data) {
     $stmt = $pdo->prepare("
         INSERT INTO stat_utgifter (kategori, beskrivning, belopp, moms_procent, datum, aterkommande)
         VALUES (:kategori, :beskrivning, :belopp, :moms_procent, :datum, :aterkommande)
