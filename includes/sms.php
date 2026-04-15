@@ -43,24 +43,31 @@ function skickaSms(string $till, string $meddelande): bool {
     smsLog("Payload: " . json_encode($payload, JSON_UNESCAPED_UNICODE));
     smsLog("Meddelandelängd: " . mb_strlen($meddelande) . " tecken");
 
-    $context = stream_context_create([
-        'http' => [
-            'method'  => 'POST',
-            'header'  => 'Authorization: Basic ' . base64_encode(SMS_API_USER . ':' . SMS_API_PASS) . "\r\n"
-                       . "Content-type: application/x-www-form-urlencoded\r\n",
-            'content' => http_build_query($payload, '', '&'),
-            'timeout' => 10,
-        ]
+    $ch = curl_init('https://api.46elks.com/a1/sms');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_USERPWD        => SMS_API_USER . ':' . SMS_API_PASS,
+        CURLOPT_POSTFIELDS     => http_build_query($payload, '', '&'),
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_SSL_VERIFYPEER => false,
     ]);
 
-    smsLog("Skickar anrop till 46elks...");
-    $response = @file_get_contents('https://api.46elks.com/a1/sms', false, $context);
-    $header   = isset($http_response_header[0]) ? $http_response_header[0] : '(inget svar — nätverksfel?)';
-    smsLog("HTTP-svar: $header");
-    smsLog("46elks body: " . ($response ?: '(tomt)'));
+    smsLog("Skickar cURL-anrop till 46elks...");
+    $response  = curl_exec($ch);
+    $httpKod   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr   = curl_error($ch);
+    curl_close($ch);
 
-    if (strpos($header, '200') === false && strpos($header, '201') === false) {
-        smsLog("AVBROTT: 46elks nekade — $header");
+    smsLog("HTTP-kod: $httpKod — body: " . ($response ?: '(tomt)'));
+
+    if ($curlErr) {
+        smsLog("AVBROTT: cURL-fel: $curlErr");
+        return false;
+    }
+
+    if ($httpKod < 200 || $httpKod >= 300) {
+        smsLog("AVBROTT: 46elks nekade — HTTP $httpKod: $response");
         return false;
     }
 
