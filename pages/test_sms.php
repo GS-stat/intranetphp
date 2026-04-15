@@ -62,14 +62,45 @@ $normaliserat = normaliseTelefon($testNummer);
 ut("normaliseTelefon('$testNummer') → " . ($normaliserat ?: 'false — misslyckades!'), $normaliserat ? 'ok' : 'fel');
 ut('');
 
-// ── STEG 5: Skicka test-SMS ────────────────────────────
+// ── STEG 5: Skicka test-SMS (rå cURL, visar allt) ─────
 ut('── STEG 5: Skicka test-SMS ───────────────────', 'rubrik');
 
 $tillNummer = $_GET['till'] ?? '';
 if ($tillNummer) {
-    ut("Skickar test-SMS till: $tillNummer ...", 'info');
-    $ok = skickaSms($tillNummer, 'Test från GS Motors stat-system. Om du ser detta fungerar SMS! // GS Motors');
-    ut($ok ? 'SMS SKICKAT ✓' : 'SMS MISSLYCKADES ✗ — se loggarna nedan', $ok ? 'ok' : 'fel');
+    $normTill = normaliseTelefon($tillNummer);
+    ut("Råformat: $tillNummer → E.164: " . ($normTill ?: 'MISSLYCKADES'), $normTill ? 'ok' : 'fel');
+
+    if ($normTill) {
+        $payload = [
+            'from'    => SMS_FROM,
+            'to'      => $normTill,
+            'message' => 'Test fran GS Motors. Fungerar SMS? // GS Motors',
+        ];
+        ut('Payload: ' . json_encode($payload));
+        ut('Anropar https://api.46elks.com/a1/sms ...');
+
+        $context = stream_context_create([
+            'http' => [
+                'method'  => 'POST',
+                'header'  => 'Authorization: Basic ' . base64_encode(SMS_API_USER . ':' . SMS_API_PASS) . "\r\n"
+                           . "Content-type: application/x-www-form-urlencoded\r\n",
+                'content' => http_build_query($payload, '', '&'),
+                'timeout' => 10,
+            ]
+        ]);
+
+        $response = @file_get_contents('https://api.46elks.com/a1/sms', false, $context);
+        $header   = isset($http_response_header[0]) ? $http_response_header[0] : '(inget svar)';
+
+        ut("HTTP-svar: $header", (strpos($header,'200') !== false) ? 'ok' : 'fel');
+        ut("46elks body: " . ($response ?: '(tomt)'), (strpos($header,'200') !== false) ? 'ok' : 'fel');
+
+        if (strpos($header, '200') !== false || strpos($header, '201') !== false) {
+            ut('SMS SKICKAT ✓', 'ok');
+        } else {
+            ut('SMS NEKADES ✗', 'fel');
+        }
+    }
 } else {
     ut('Inget testnummer angivet — se formulär nedan', 'info');
 }
